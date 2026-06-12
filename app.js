@@ -10,9 +10,13 @@
 // data is stored. If this project is taken down, replace FIREBASE_CONFIG
 // with your own free Firebase project's config (Realtime Database enabled).
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", // placeholder - see SETUP
+  apiKey: "AIzaSyDE8vR8JE48sqrlYctF92oQzmWuuxmaUZ0",
+  authDomain: "rhythmiq-sim.firebaseapp.com",
   databaseURL: "https://rhythmiq-sim-default-rtdb.firebaseio.com",
-  projectId: "rhythmiq-sim"
+  projectId: "rhythmiq-sim",
+  storageBucket: "rhythmiq-sim.firebasestorage.app",
+  messagingSenderId: "764301941712",
+  appId: "1:764301941712:web:df52ce477af0a6a590f7d5"
 };
 
 let fbReady = false;
