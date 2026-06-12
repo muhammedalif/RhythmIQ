@@ -587,16 +587,17 @@ class WaveEngine{
   }
 
   mobitzI(t, hr){
-    // Wenckebach: progressively lengthening PR, then dropped QRS, cycle of 4
+    // Wenckebach: progressively lengthening PR interval across 4 beats,
+    // then a dropped QRS (P wave with no following QRS), then cycle repeats.
     const baseRR = 60/hr;
     if(!this._mobI || this._mobIHR!==hr){
       this._mobIHR = hr;
-      // build beat schedule: 4 P waves, 3 QRS (drop the 4th)
+      // PR intervals (as fraction of baseRR) lengthen each beat: short -> long
+      const prFractions = [0.12, 0.20, 0.30, 0.42];
       const beats = []; let tt=0;
-      for(let cyc=0; cyc<100; cyc++){
-        const prDelays = [0.14,0.18,0.24,0.32];
+      for(let cyc=0; cyc<150; cyc++){
         for(let i=0;i<4;i++){
-          beats.push({ t: tt, pr: prDelays[i], drop: i===3 });
+          beats.push({ t: tt, prFrac: prFractions[i], drop: i===3 });
           tt += baseRR;
         }
       }
@@ -606,14 +607,15 @@ class WaveEngine{
     for(const b of this._mobI){
       const d = t - b.t;
       if(d > -0.1 && d < baseRR){
-        // P wave always present
+        // P wave fires on schedule (every baseRR), independent of QRS
         y += 0.15 * gauss(d, 0.0, 0.04);
         if(!b.drop){
-          const qrsT = b.pr;
-          const local = d - 0;
-          if(local > -0.05 && local < 0.4){
-            const phase = local/0.4;
-            y += this.pqrst(phase, {pWave:false, qrsWidth:0.08, prLong:true});
+          // QRS follows the P wave after prFrac * baseRR (progressively longer)
+          const qrsDelay = b.prFrac * baseRR;
+          const local = d - qrsDelay;
+          if(local > -0.05 && local < 0.35){
+            const phase = (local + 0.05)/0.4;
+            y += this.pqrst(phase, {pWave:false, qrsWidth:0.08});
           }
         }
       }
@@ -622,15 +624,25 @@ class WaveEngine{
   }
 
   mobitzII(t, hr){
-    // Fixed PR, intermittent dropped QRS (every 3rd beat dropped)
+    // Constant, fixed PR interval every beat. Every 3rd beat is suddenly
+    // dropped (P wave present, no QRS) - no progressive PR lengthening.
     const baseRR = 60/hr;
+    const fixedPRFrac = 0.18; // constant PR interval (normal-ish)
     const cycleLen = baseRR*3;
     const phaseInCycle = (t % cycleLen)/baseRR; // 0..3
     const beatNum = Math.floor(phaseInCycle);
-    const localPhase = phaseInCycle - beatNum;
-    let y = 0.15*gauss(localPhase,0.12,0.04); // P wave each beat
-    if(beatNum !== 2){ // drop every 3rd
-      y += this.pqrst(localPhase, {pWave:false, qrsWidth:0.08, prLong:false});
+    const localPhase = phaseInCycle - beatNum; // 0..1 within this beat's RR
+
+    // P wave always fires on time, every beat
+    let y = 0.15 * gauss(localPhase, 0.0, 0.04);
+
+    if(beatNum !== 2){ // beats 0 and 1 conduct, beat 2 (every 3rd) is dropped
+      const qrsDelay = fixedPRFrac;
+      const local = localPhase - qrsDelay;
+      if(local > -0.05 && local < 0.35){
+        const phase = (local + 0.05)/0.4;
+        y += this.pqrst(phase, {pWave:false, qrsWidth:0.08});
+      }
     }
     return y;
   }
