@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1408 760" width="1408" height="760">
+  <defs>
+    <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f3a6b"/>
+      <stop offset="100%" stop-color="#2fa8e0"/>
+    </linearGradient>
+    <linearGradient id="ecgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1577c2"/>
+      <stop offset="100%" stop-color="#37c3ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1408" height="760" fill="#eef6fb"/>
+
+  <!-- Heart formed by R Q monogram -->
+  <g transform="translate(704,300)">
+    <!-- Left loop (R bowl) -->
+    <path d="M -150,-60
+             a 80,80 0 1 1 0,160
+             l -10,0
+             a 90,90 0 1 1 0,-180
+             z"
+          fill="none" stroke="url(#heartGrad)" stroke-width="26" stroke-linecap="round"/>
+    <!-- Right loop (Q bowl) -->
+    <path d="M 30,-60
+             a 80,80 0 1 1 0,160
+             a 80,80 0 1 1 0,-160
+             z"
+          fill="none" stroke="url(#heartGrad)" stroke-width="26" stroke-linecap="round"/>
+    <!-- Heart bottom V -->
+    <path d="M -160,40 L 0,210 L 160,40"
+          fill="none" stroke="url(#heartGrad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- R leg -->
+    <path d="M -120,30 L -60,150"
+          fill="none" stroke="#0f3a6b" stroke-width="26" stroke-linecap="round"/>
+    <!-- Q tail -->
+    <path d="M 60,90 q 40,40 90,10"
+          fill="none" stroke="#0f3a6b" stroke-width="22" stroke-linecap="round"/>
+
+    <!-- ECG trace through center -->
+    <polyline points="-260,30 -90,30 -55,-30 -10,90 35,-50 80,30 260,30"
+              fill="none" stroke="url(#ecgGrad)" stroke-width="14"
+              stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Sparkle / pulse burst top right -->
+    <g stroke="#37c3ff" stroke-width="10" stroke-linecap="round">
+      <line x1="160" y1="-150" x2="160" y2="-200"/>
+      <line x1="210" y1="-130" x2="245" y2="-165"/>
+      <line x1="230" y1="-90" x2="270" y2="-95"/>
+      <line x1="110" y1="-130" x2="75" y2="-165"/>
+    </g>
+    <polyline points="120,-130 150,-130 165,-160 185,-110 205,-150 230,-130 255,-130"
+              fill="none" stroke="#1da6e0" stroke-width="10"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="704" y="600" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="96">
+    <tspan fill="#0f3a6b">Rhythm</tspan><tspan fill="#37c3ff">IQ</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="704" y="660" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="36" fill="#0f3a6b" letter-spacing="2">
+    Learn. Interpret. Respond.
+  </text>
+</svg>

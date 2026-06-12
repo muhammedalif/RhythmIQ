@@ -241,7 +241,8 @@
 
 <!-- ========== LANDING ========== -->
 <div id="landing">
-  <h1>RhythmIQ &mdash; Megacode Simulator</h1>
+  <img src="logo.svg" alt="RhythmIQ" style="max-width:320px; width:80%; margin-bottom:-10px;">
+  <h1 style="font-size:18px; letter-spacing:3px; color:var(--dim);">MEGACODE SIMULATOR</h1>
   <p>A virtual bedside monitor for ACLS / BLS / PALS / Code Blue training. One device shows the patient monitor, another acts as the instructor controller. Both connect using the same room code.</p>
 
   <div class="mode-buttons">
@@ -314,7 +315,6 @@
       <div class="num-box c-pleth">
         <div class="num-label"><span>SpO₂</span><span>%</span></div>
         <div class="num-value" id="spo2Val">--</div>
-        <div class="num-sub" id="prVal">PR -- bpm</div>
       </div>
       <div class="num-box c-resp">
         <div class="num-label"><span>RESP</span><span>/min</span></div>
@@ -393,15 +393,6 @@
       <div class="stepper"><button onclick="step('hr',-1)">−</button></div>
       <input type="range" min="0" max="250" id="hrSlider" oninput="setParam('hr', this.value)">
       <div class="stepper"><button onclick="step('hr',1)">+</button></div>
-    </div>
-  </div>
-
-  <div class="param-card">
-    <div class="param-row"><label>Pulse Rate (correlates pulse oximeter)</label><span class="pval c-pleth"><span id="prCtrlVal">80</span> bpm</span></div>
-    <div class="ctrl-slider-row">
-      <div class="stepper"><button onclick="step('pr',-1)">−</button></div>
-      <input type="range" min="0" max="250" id="prSlider" oninput="setParam('pr', this.value)">
-      <div class="stepper"><button onclick="step('pr',1)">+</button></div>
     </div>
   </div>
 

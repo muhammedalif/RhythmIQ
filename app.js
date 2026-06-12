@@ -36,7 +36,6 @@ const localChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('rhyt
 const DEFAULT_STATE = {
   rhythm: 'sinus',
   hr: 80,
-  pr: 80,
   sys: 120,
   dia: 80,
   spo2: 98,
@@ -44,6 +43,7 @@ const DEFAULT_STATE = {
   co2: 35,
   temp: 37.0,
   arrest: false,
+  pulseless: false,
   ts: Date.now()
 };
 
@@ -208,7 +208,6 @@ function renderMonitorNumbers(){
   const map = state.sys && state.dia ? Math.round((state.sys + 2*state.dia)/3) : 0;
   setText('mapVal', state.sys ? `MAP ${map}` : 'MAP --');
   setText('spo2Val', state.spo2 > 0 ? fmtInt(state.spo2) : '--');
-  setText('prVal', `PR ${state.pr > 0 ? fmtInt(state.pr) : '--'} bpm`);
   setText('rrVal', fmtInt(state.rr));
   setText('co2Val', fmtInt(state.co2));
   setText('tempVal', state.temp.toFixed(1));
@@ -230,7 +229,7 @@ function updateClinicalFlags(){
   const flag = document.getElementById('clinicalFlag');
   let msg = '';
   if(state.arrest) msg = 'CARDIAC ARREST — CPR IN PROGRESS';
-  else if(state.pr === 0 && state.hr > 0 && state.sys === 0) msg = 'PULSELESS — CHECK PATIENT (PEA)';
+  else if(state.pulseless && state.hr > 0) msg = 'PULSELESS — CHECK PATIENT (PEA)';
   flag.textContent = msg;
   flag.classList.toggle('show', !!msg);
 }
@@ -246,7 +245,6 @@ function initController(){
 
 function syncControllerUI(){
   setSliderVal('hr', state.hr);
-  setSliderVal('pr', state.pr);
   setSliderVal('sys', state.sys);
   setSliderVal('dia', state.dia);
   setSliderVal('spo2', state.spo2);
@@ -286,9 +284,9 @@ function setParam(key, val){
   pushState();
 }
 
-const STEP_SIZE = { hr:1, pr:1, sys:2, dia:2, spo2:1, rr:1, co2:1, temp:0.1 };
-const STEP_MAX  = { hr:250, pr:250, sys:300, dia:200, spo2:100, rr:60, co2:99, temp:42.0 };
-const STEP_MIN  = { hr:0, pr:0, sys:0, dia:0, spo2:0, rr:0, co2:0, temp:30.0 };
+const STEP_SIZE = { hr:1, sys:2, dia:2, spo2:1, rr:1, co2:1, temp:0.1 };
+const STEP_MAX  = { hr:250, sys:300, dia:200, spo2:100, rr:60, co2:99, temp:42.0 };
+const STEP_MIN  = { hr:0, sys:0, dia:0, spo2:0, rr:0, co2:0, temp:30.0 };
 
 function step(key, dir){
   const s = STEP_SIZE[key] * (dir<0?-1:1);
@@ -314,10 +312,9 @@ function toggleArrest(){
   state.arrest = !state.arrest;
   if(state.arrest){
     // typical arrest defaults
-    state.pr = 0; state.sys = 0; state.dia = 0; state.spo2 = 0; state.co2 = 12;
-    if(['sinus','sinusTachy','sinusBrady','svt','afib','aflutter','avb1','avb2m1','avb2m2','avb3'].includes(state.rhythm)){
-      // leave rhythm as-is unless asystole/VF selected by instructor
-    }
+    state.pulseless = true; state.sys = 0; state.dia = 0; state.spo2 = 0; state.co2 = 12;
+  } else {
+    state.pulseless = false;
   }
   syncControllerUI();
   pushState();
@@ -326,15 +323,15 @@ function toggleArrest(){
 function applyScenario(name){
   if(name === 'pea'){
     state.rhythm = 'sinus';
-    state.hr = 80; state.pr = 0; state.sys = 0; state.dia = 0; state.spo2 = 0;
+    state.hr = 80; state.pulseless = true; state.sys = 0; state.dia = 0; state.spo2 = 0;
     state.rr = 10; state.co2 = 8; state.arrest = true;
   } else if(name === 'rosc'){
     state.rhythm = 'sinus';
-    state.hr = 90; state.pr = 90; state.sys = 120; state.dia = 80; state.spo2 = 98;
+    state.hr = 90; state.pulseless = false; state.sys = 120; state.dia = 80; state.spo2 = 98;
     state.rr = 16; state.co2 = 40; state.arrest = false;
   } else if(name === 'shock'){
     state.rhythm = 'sinusTachy';
-    state.hr = 140; state.pr = 140; state.sys = 70; state.dia = 40; state.spo2 = 88;
+    state.hr = 140; state.pulseless = false; state.sys = 70; state.dia = 40; state.spo2 = 88;
     state.rr = 24; state.co2 = 30; state.arrest = false;
   } else if(name === 'stable'){
     Object.assign(state, DEFAULT_STATE, {ts: Date.now()});
@@ -443,7 +440,7 @@ class WaveEngine{
     this.hr = s.hr;
     this.rhythm = s.rhythm;
     this.spo2 = s.spo2;
-    this.pr = s.pr;
+    this.pulseless = s.pulseless;
     this.rr = s.rr;
     this.co2level = s.co2;
     this.arrest = s.arrest;
@@ -527,12 +524,12 @@ class WaveEngine{
     let y = 0;
     // P wave
     if(pWave){
-      const pCenter = prLong ? 0.18 : 0.12;
-      const pWidth = 0.05;
-      y += 0.15 * gauss(phase, pCenter, pWidth);
+      const pCenter = prLong ? 0.08 : 0.12;
+      const pWidth = 0.045;
+      y += 0.18 * gauss(phase, pCenter, pWidth);
     }
     // QRS complex
-    const qrsCenter = prLong ? 0.30 : 0.22;
+    const qrsCenter = prLong ? 0.38 : 0.22;
     const qw = narrow ? qrsWidth*0.8 : qrsWidth;
     // Q dip
     y -= 0.1 * gauss(phase, qrsCenter - qw*0.6, qw*0.25);
@@ -608,7 +605,7 @@ class WaveEngine{
       const d = t - b.t;
       if(d > -0.1 && d < baseRR){
         // P wave fires on schedule (every baseRR), independent of QRS
-        y += 0.15 * gauss(d, 0.0, 0.04);
+        y += 0.18 * gauss(d, 0.0, 0.045);
         if(!b.drop){
           // QRS follows the P wave after prFrac * baseRR (progressively longer)
           const qrsDelay = b.prFrac * baseRR;
@@ -634,7 +631,7 @@ class WaveEngine{
     const localPhase = phaseInCycle - beatNum; // 0..1 within this beat's RR
 
     // P wave always fires on time, every beat
-    let y = 0.15 * gauss(localPhase, 0.0, 0.04);
+    let y = 0.18 * gauss(localPhase, 0.0, 0.045);
 
     if(beatNum !== 2){ // beats 0 and 1 conduct, beat 2 (every 3rd) is dropped
       const qrsDelay = fixedPRFrac;
@@ -738,7 +735,7 @@ class WaveEngine{
     ctx.clearRect(0,0,w,h);
     this.drawGrid(ctx, w, h);
 
-    if(this.pr === 0 || this.spo2 === 0){
+    if(this.pulseless || this.spo2 === 0 || this.hr === 0){
       // flat line if no pulse / probe off
       ctx.beginPath();
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--pleth').trim();
@@ -749,7 +746,7 @@ class WaveEngine{
 
     const windowSec = 4.5;
     const samples = Math.floor(w);
-    const hrEff = this.pr || this.hr || 80;
+    const hrEff = this.hr || 80;
     const rr = 60/Math.max(hrEff,1);
 
     ctx.beginPath();
