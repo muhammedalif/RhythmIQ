@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RhythmIQ Megacode Simulator</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#05070a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#05070a;
+    --panel:#0c1117;
+    --panel2:#121a23;
+    --line:#1f2c38;
+    --ecg:#39ff6a;
+    --pleth:#19c2ff;
+    --resp:#ffd23f;
+    --co2:#ff8a3d;
+    --nibp:#ffffff;
+    --temp:#c08bff;
+    --text:#e8f1f7;
+    --dim:#5a7282;
+    --danger:#ff3b3b;
+    --warn:#ffb020;
+    --mono: 'Courier New', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background:var(--bg); color:var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+    height:100%; overflow:hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* ============ MONITOR VIEW ============ */
+  #monitor{
+    display:flex; flex-direction:column;
+    width:100vw; height:100vh;
+    background: radial-gradient(ellipse at center, #07090d 0%, #020304 100%);
+  }
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 14px; background:#000; border-bottom:1px solid var(--line);
+    font-size:12px; color:var(--dim); letter-spacing:1px;
+  }
+  .topbar .brand{ color:#3a7; font-weight:bold; letter-spacing:2px;}
+  .topbar .status{ display:flex; gap:14px; align-items:center;}
+  .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;}
+  .dot.live{ background:#39ff6a; box-shadow:0 0 6px #39ff6a; animation:pulse 1.2s infinite;}
+  .dot.off{ background:#555; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .monitor-body{
+    flex:1; display:grid;
+    grid-template-columns: 1fr 230px;
+    overflow:hidden;
+  }
+  .waves{ display:flex; flex-direction:column; padding:4px 8px; gap:2px; min-height:0;}
+  .wave-row{
+    position:relative; flex:1; border-bottom:1px solid #131c24; min-height:0;
+    display:flex; flex-direction:column;
+  }
+  .wave-row:last-child{ border-bottom:none; }
+  .wave-label{
+    position:absolute; top:4px; left:6px; z-index:2;
+    font-size:13px; font-weight:bold; font-family:var(--mono);
+    text-shadow: 0 0 4px rgba(0,0,0,.8);
+  }
+  .wave-sub{
+    position:absolute; top:4px; right:8px; z-index:2;
+    font-size:11px; font-family:var(--mono); color:var(--dim);
+  }
+  canvas{ width:100%; height:100%; display:block; }
+
+  .num-col{
+    background:#000; border-left:2px solid var(--line);
+    display:flex; flex-direction:column; overflow-y:auto;
+  }
+  .num-box{
+    border-bottom:1px solid var(--line); padding:8px 10px;
+    display:flex; flex-direction:column; justify-content:center;
+    position:relative; min-height:0;
+  }
+  .num-label{
+    font-size:12px; font-weight:bold; letter-spacing:2px; font-family:var(--mono);
+    display:flex; justify-content:space-between;
+  }
+  .num-value{
+    font-size:44px; font-weight:bold; font-family:var(--mono); line-height:1;
+    margin-top:2px; letter-spacing:1px;
+  }
+  .num-sub{ font-size:11px; color:var(--dim); font-family:var(--mono); margin-top:2px;}
+  .num-unit{ font-size:14px; font-weight:normal; opacity:.7; margin-left:6px;}
+
+  .c-ecg{ color:var(--ecg); }
+  .c-pleth{ color:var(--pleth); }
+  .c-resp{ color:var(--resp); }
+  .c-co2{ color:var(--co2); }
+  .c-nibp{ color:var(--nibp); }
+  .c-temp{ color:var(--temp); }
+
+  .bp-frac{ display:flex; align-items:flex-end; gap:6px;}
+  .bp-frac .sys{ font-size:40px; }
+  .bp-frac .dia{ font-size:26px; opacity:.75; }
+  .bp-mean{ font-size:14px; color:var(--dim); margin-top:2px; font-family:var(--mono);}
+
+  .alarm-banner{
+    display:none; background:var(--danger); color:#fff; text-align:center;
+    font-weight:bold; font-size:18px; letter-spacing:3px; padding:6px;
+    animation: alarmFlash 1s infinite;
+  }
+  .alarm-banner.show{ display:block; }
+  @keyframes alarmFlash{ 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .rhythm-label{
+    position:absolute; bottom:4px; left:6px; z-index:2;
+    font-size:13px; font-family:var(--mono); color:#fff; opacity:.85;
+    background:rgba(0,0,0,.4); padding:2px 8px; border-radius:3px;
+  }
+
+  /* PEA / shock indicator */
+  .clinical-flag{
+    position:absolute; top:4px; left:50%; transform:translateX(-50%);
+    font-size:11px; font-family:var(--mono); color:var(--warn);
+    background:rgba(0,0,0,.5); padding:2px 8px; border-radius:3px;
+    z-index:3; display:none; letter-spacing:1px;
+  }
+  .clinical-flag.show{ display:block; }
+
+  /* ============ LANDING / MODE SELECT ============ */
+  #landing{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    height:100vh; gap:24px; text-align:center; padding:20px;
+  }
+  #landing h1{ font-size:28px; letter-spacing:2px; color:#39ff6a; font-family:var(--mono);}
+  #landing p{ color:var(--dim); max-width:480px; font-size:14px; line-height:1.6;}
+  .mode-buttons{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center;}
+  .mode-btn{
+    background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    padding:18px 28px; border-radius:10px; font-size:16px; cursor:pointer;
+    min-width:180px; transition:.15s;
+  }
+  .mode-btn:hover{ border-color:#39ff6a; background:#15202a; }
+  .mode-btn small{ display:block; color:var(--dim); font-size:12px; margin-top:6px; font-weight:normal;}
+
+  .room-box{ display:flex; flex-direction:column; gap:10px; align-items:center; margin-top:10px;}
+  .room-box input{
+    background:#0c1117; border:1px solid var(--line); color:#fff;
+    padding:12px 14px; border-radius:8px; font-size:18px; text-align:center;
+    font-family:var(--mono); letter-spacing:4px; width:200px; text-transform:uppercase;
+  }
+  .room-box button{
+    background:#39ff6a; border:none; color:#000; font-weight:bold;
+    padding:12px 24px; border-radius:8px; font-size:15px; cursor:pointer;
+  }
+  .small-link{ color:var(--dim); font-size:12px; text-decoration:underline; cursor:pointer; }
+
+  /* ============ CONTROLLER ============ */
+  #controller{
+    display:none; height:100vh; overflow-y:auto; padding:10px 12px 80px;
+  }
+  #controller h2{ font-size:16px; color:#39ff6a; margin:14px 0 8px; letter-spacing:1px;}
+  .ctrl-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; border-bottom:1px solid var(--line); margin-bottom:6px;
+  }
+  .ctrl-header .room-tag{ font-family:var(--mono); color:var(--dim); font-size:12px;}
+  .ctrl-header .conn{ font-size:12px; }
+
+  .param-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px; margin-bottom:10px;
+  }
+  .param-row{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .param-row label{ font-size:13px; font-weight:bold; color:var(--text); }
+  .param-row .pval{ font-family:var(--mono); font-size:18px; font-weight:bold; }
+  .ctrl-slider-row{ display:flex; align-items:center; gap:8px; }
+  .ctrl-slider-row input[type=range]{ flex:1; height:34px; accent-color:#39ff6a; }
+  .stepper{
+    display:flex; gap:4px;
+  }
+  .stepper button{
+    width:38px; height:38px; border-radius:8px; border:1px solid var(--line);
+    background:#1a2530; color:#fff; font-size:18px; font-weight:bold; cursor:pointer;
+  }
+  .stepper button:active{ background:#39ff6a; color:#000; }
+
+  .rhythm-grid{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:8px;
+  }
+  .rhythm-grid button{
+    background:#121a23; border:1px solid var(--line); color:var(--text);
+    padding:12px 6px; border-radius:8px; font-size:12.5px; cursor:pointer;
+    text-align:center; line-height:1.3;
+  }
+  .rhythm-grid button.active{ border-color:#39ff6a; background:#16321f; color:#39ff6a; }
+  .rhythm-grid button:active{ transform:scale(.97); }
+
+  .group-title{
+    font-size:11px; color:var(--dim); letter-spacing:2px; margin:10px 0 4px; text-transform:uppercase;
+  }
+
+  .scenario-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .scenario-grid button{
+    background:#1a1420; border:1px solid #3a2a4a; color:#e9d8ff; padding:12px;
+    border-radius:8px; font-size:13px; cursor:pointer; font-weight:bold;
+  }
+  .scenario-grid button.danger{ background:#2a1416; border-color:#5a2a2a; color:#ffb0b0; }
+
+  .arrest-toggle{
+    width:100%; padding:16px; border-radius:10px; border:none; font-size:16px;
+    font-weight:bold; cursor:pointer; margin-bottom:10px; letter-spacing:1px;
+  }
+  .arrest-toggle.start{ background:var(--danger); color:#fff; }
+  .arrest-toggle.stop{ background:#39ff6a; color:#000; }
+
+  .reset-btn{
+    width:100%; padding:12px; border-radius:8px; border:1px solid var(--line);
+    background:#121a23; color:var(--dim); font-size:13px; cursor:pointer; margin-top:6px;
+  }
+
+  .full-link{
+    display:block; text-align:center; margin-top:10px; padding:10px;
+    background:#121a23; border:1px solid var(--line); border-radius:8px;
+    color:var(--dim); font-size:12px; text-decoration:none;
+  }
+
+  @media (max-width: 700px){
+    .monitor-body{ grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .num-col{ border-left:none; border-top:2px solid var(--line); flex-direction:row; flex-wrap:wrap; overflow-x:auto; }
+    .num-box{ flex:1 1 33%; border-bottom:none; border-right:1px solid var(--line); min-width:110px;}
+    .num-value{ font-size:30px; }
+    .bp-frac .sys{ font-size:26px; }
+    .bp-frac .dia{ font-size:18px; }
+    .waves{ padding:2px 4px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== LANDING ========== -->
+<div id="landing">
+  <h1>RhythmIQ &mdash; Megacode Simulator</h1>
+  <p>A virtual bedside monitor for ACLS / BLS / PALS / Code Blue training. One device shows the patient monitor, another acts as the instructor controller. Both connect using the same room code.</p>
+
+  <div class="mode-buttons">
+    <div class="mode-btn" onclick="showRoomEntry('monitor')">
+      🖥️ Patient Monitor
+      <small>Project this on the big screen for trainees</small>
+    </div>
+    <div class="mode-btn" onclick="showRoomEntry('controller')">
+      🎛️ Instructor Controller
+      <small>Use this on your phone to run the scenario</small>
+    </div>
+  </div>
+
+  <div class="room-box" id="roomEntry" style="display:none;">
+    <div id="roomEntryTitle" style="color:var(--dim); font-size:13px;"></div>
+    <input id="roomCodeInput" placeholder="ROOM CODE" maxlength="6">
+    <button onclick="enterRoom()">Connect</button>
+    <div class="small-link" onclick="randomRoom()">Generate random code</div>
+  </div>
+</div>
+
+<!-- ========== MONITOR ========== -->
+<div id="monitor" style="display:none;">
+  <div class="topbar">
+    <div class="brand">RhythmIQ MONITOR</div>
+    <div class="status">
+      <span id="roomTagM"></span>
+      <span><span class="dot off" id="connDotM"></span><span id="connTxtM">connecting</span></span>
+      <span id="clock">--:--:--</span>
+    </div>
+  </div>
+  <div class="alarm-banner" id="alarmBanner">★ ALARM ★ CHECK PATIENT ★</div>
+
+  <div class="monitor-body">
+    <div class="waves">
+      <div class="wave-row">
+        <div class="wave-label c-ecg">ECG &nbsp;II</div>
+        <div class="wave-sub c-ecg" id="ecgSub">25 mm/s</div>
+        <canvas id="ecgCanvas"></canvas>
+        <div class="rhythm-label" id="rhythmLabel">Sinus Rhythm</div>
+        <div class="clinical-flag" id="clinicalFlag"></div>
+      </div>
+      <div class="wave-row">
+        <div class="wave-label c-pleth">Pleth</div>
+        <canvas id="plethCanvas"></canvas>
+      </div>
+      <div class="wave-row">
+        <div class="wave-label c-resp">Resp</div>
+        <canvas id="respCanvas"></canvas>
+      </div>
+      <div class="wave-row">
+        <div class="wave-label c-co2">CO₂</div>
+        <canvas id="co2Canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="num-col">
+      <div class="num-box c-ecg">
+        <div class="num-label"><span>HR</span><span>bpm</span></div>
+        <div class="num-value" id="hrVal">--</div>
+        <div class="num-sub" id="hrAlarm">limits 50&ndash;120</div>
+      </div>
+      <div class="num-box c-nibp">
+        <div class="num-label"><span>NIBP</span><span>mmHg</span></div>
+        <div class="bp-frac">
+          <span class="sys" id="sysVal">--</span><span>/</span><span class="dia" id="diaVal">--</span>
+        </div>
+        <div class="bp-mean" id="mapVal">MAP --</div>
+      </div>
+      <div class="num-box c-pleth">
+        <div class="num-label"><span>SpO₂</span><span>%</span></div>
+        <div class="num-value" id="spo2Val">--</div>
+        <div class="num-sub" id="prVal">PR -- bpm</div>
+      </div>
+      <div class="num-box c-resp">
+        <div class="num-label"><span>RESP</span><span>/min</span></div>
+        <div class="num-value" id="rrVal">--</div>
+      </div>
+      <div class="num-box c-co2">
+        <div class="num-label"><span>EtCO₂</span><span>mmHg</span></div>
+        <div class="num-value" id="co2Val">--</div>
+      </div>
+      <div class="num-box c-temp">
+        <div class="num-label"><span>TEMP</span><span>°C</span></div>
+        <div class="num-value" id="tempVal" style="font-size:32px;">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== CONTROLLER ========== -->
+<div id="controller">
+  <div class="ctrl-header">
+    <div>
+      <div style="color:#39ff6a; font-weight:bold; font-size:14px;">INSTRUCTOR CONTROL</div>
+      <div class="room-tag">Room: <span id="roomTagC"></span></div>
+    </div>
+    <div class="conn"><span class="dot off" id="connDotC"></span><span id="connTxtC">connecting</span></div>
+  </div>
+
+  <button class="arrest-toggle start" id="arrestBtn" onclick="toggleArrest()">START CARDIAC ARREST</button>
+
+  <h2>Quick Scenarios</h2>
+  <div class="scenario-grid">
+    <button onclick="applyScenario('pea')">PEA</button>
+    <button onclick="applyScenario('rosc')">ROSC</button>
+    <button onclick="applyScenario('shock')" class="danger">Septic / Hypotensive Shock</button>
+    <button onclick="applyScenario('stable')">Stable Baseline</button>
+  </div>
+
+  <h2>ECG Rhythm</h2>
+  <div class="group-title">Normal</div>
+  <div class="rhythm-grid">
+    <button data-rhythm="sinus" onclick="setRhythm('sinus')">Sinus Rhythm</button>
+    <button data-rhythm="sinusTachy" onclick="setRhythm('sinusTachy')">Sinus Tachycardia</button>
+    <button data-rhythm="sinusBrady" onclick="setRhythm('sinusBrady')">Sinus Bradycardia</button>
+  </div>
+  <div class="group-title">Supraventricular</div>
+  <div class="rhythm-grid">
+    <button data-rhythm="svt" onclick="setRhythm('svt')">SVT</button>
+    <button data-rhythm="afib" onclick="setRhythm('afib')">Atrial Fibrillation</button>
+    <button data-rhythm="aflutter" onclick="setRhythm('aflutter')">Atrial Flutter</button>
+  </div>
+  <div class="group-title">AV Blocks</div>
+  <div class="rhythm-grid">
+    <button data-rhythm="avb1" onclick="setRhythm('avb1')">1st Degree AVB</button>
+    <button data-rhythm="avb2m1" onclick="setRhythm('avb2m1')">2° Mobitz I</button>
+    <button data-rhythm="avb2m2" onclick="setRhythm('avb2m2')">2° Mobitz II</button>
+    <button data-rhythm="avb3" onclick="setRhythm('avb3')">3° Complete Block</button>
+  </div>
+  <div class="group-title">Ventricular</div>
+  <div class="rhythm-grid">
+    <button data-rhythm="vtMono" onclick="setRhythm('vtMono')">Monomorphic VT</button>
+    <button data-rhythm="vtPoly" onclick="setRhythm('vtPoly')">Polymorphic VT</button>
+    <button data-rhythm="torsades" onclick="setRhythm('torsades')">Torsades de Pointes</button>
+    <button data-rhythm="vfCoarse" onclick="setRhythm('vfCoarse')">VFib (Coarse)</button>
+    <button data-rhythm="vfFine" onclick="setRhythm('vfFine')">VFib (Fine)</button>
+  </div>
+  <div class="group-title">Arrest</div>
+  <div class="rhythm-grid">
+    <button data-rhythm="asystole" onclick="setRhythm('asystole')">Asystole</button>
+  </div>
+
+  <h2>Vital Signs</h2>
+
+  <div class="param-card">
+    <div class="param-row"><label>Heart Rate</label><span class="pval c-ecg"><span id="hrCtrlVal">80</span> bpm</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('hr',-1)">−</button></div>
+      <input type="range" min="0" max="250" id="hrSlider" oninput="setParam('hr', this.value)">
+      <div class="stepper"><button onclick="step('hr',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>Pulse Rate (correlates pulse oximeter)</label><span class="pval c-pleth"><span id="prCtrlVal">80</span> bpm</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('pr',-1)">−</button></div>
+      <input type="range" min="0" max="250" id="prSlider" oninput="setParam('pr', this.value)">
+      <div class="stepper"><button onclick="step('pr',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>BP Systolic</label><span class="pval c-nibp"><span id="sysCtrlVal">120</span> mmHg</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('sys',-1)">−</button></div>
+      <input type="range" min="0" max="300" id="sysSlider" oninput="setParam('sys', this.value)">
+      <div class="stepper"><button onclick="step('sys',1)">+</button></div>
+    </div>
+    <div class="param-row" style="margin-top:6px;"><label>BP Diastolic</label><span class="pval c-nibp"><span id="diaCtrlVal">80</span> mmHg</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('dia',-1)">−</button></div>
+      <input type="range" min="0" max="200" id="diaSlider" oninput="setParam('dia', this.value)">
+      <div class="stepper"><button onclick="step('dia',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>SpO₂</label><span class="pval c-pleth"><span id="spo2CtrlVal">98</span> %</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('spo2',-1)">−</button></div>
+      <input type="range" min="0" max="100" id="spo2Slider" oninput="setParam('spo2', this.value)">
+      <div class="stepper"><button onclick="step('spo2',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>Respiratory Rate</label><span class="pval c-resp"><span id="rrCtrlVal">16</span> /min</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('rr',-1)">−</button></div>
+      <input type="range" min="0" max="60" id="rrSlider" oninput="setParam('rr', this.value)">
+      <div class="stepper"><button onclick="step('rr',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>EtCO₂</label><span class="pval c-co2"><span id="co2CtrlVal">35</span> mmHg</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('co2',-1)">−</button></div>
+      <input type="range" min="0" max="99" id="co2Slider" oninput="setParam('co2', this.value)">
+      <div class="stepper"><button onclick="step('co2',1)">+</button></div>
+    </div>
+  </div>
+
+  <div class="param-card">
+    <div class="param-row"><label>Temperature</label><span class="pval c-temp"><span id="tempCtrlVal">37.0</span> °C</span></div>
+    <div class="ctrl-slider-row">
+      <div class="stepper"><button onclick="step('temp',-0.1)">−</button></div>
+      <input type="range" min="300" max="420" id="tempSlider" oninput="setParam('temp', this.value/10)">
+      <div class="stepper"><button onclick="step('temp',0.1)">+</button></div>
+    </div>
+  </div>
+
+  <button class="reset-btn" onclick="resetAll()">Reset to default baseline</button>
+  <a class="full-link" href="#" onclick="openMonitorWindow();return false;">Open Monitor in a new tab (same device)</a>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
