@@ -524,12 +524,12 @@ class WaveEngine{
     let y = 0;
     // P wave
     if(pWave){
-      const pCenter = prLong ? 0.08 : 0.12;
+      const pCenter = prLong ? 0.04 : 0.12;
       const pWidth = 0.045;
       y += 0.18 * gauss(phase, pCenter, pWidth);
     }
     // QRS complex
-    const qrsCenter = prLong ? 0.38 : 0.22;
+    const qrsCenter = prLong ? 0.42 : 0.22;
     const qw = narrow ? qrsWidth*0.8 : qrsWidth;
     // Q dip
     y -= 0.1 * gauss(phase, qrsCenter - qw*0.6, qw*0.25);
