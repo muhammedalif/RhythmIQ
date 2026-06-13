@@ -657,14 +657,50 @@ class WaveEngine{
 
   vt(t, hr, polymorphic){
     const rr = 60/Math.max(hr,1);
-    const phase = (t % rr)/rr;
-    let amp = 1.4;
-    if(polymorphic){
-      amp = 1.0 + 0.6*Math.sin(t*2*Math.PI*0.7);
+
+    if(!polymorphic){
+      // Monomorphic VT: smooth, regular, sinusoidal wide-complex tachycardia.
+      // Consistent amplitude and shape every beat - rounded upstroke,
+      // sharp deep downstroke, slight shoulder before the next beat.
+      const phase = (t % rr)/rr;
+      let y = 1.3 * Math.sin(phase*2*Math.PI - Math.PI/2.4);
+      // sharpen the trough
+      y += -0.35 * gauss(phase, 0.62, 0.10);
+      // small shoulder/notch near peak
+      y += 0.15 * gauss(phase, 0.08, 0.05);
+      return y;
     }
-    // wide bizarre QRS - broad gaussian with no distinct P/T
-    let y = amp * gauss(phase, 0.3, 0.18) * Math.sign(Math.sin(phase*2*Math.PI*1.5+ (polymorphic? t*2:0)));
-    y += 0.3*amp*gauss(phase, 0.65, 0.12)*-1;
+
+    // Polymorphic VT: chaotic, constantly changing amplitude AND morphology
+    // beat-to-beat. Build a per-beat schedule with randomized amplitude,
+    // width, and shape so consecutive beats look different - including
+    // occasional smaller/irregular segments amid very tall complexes.
+    if(!this._pvtBeats || this._pvtHR !== hr){
+      this._pvtHR = hr;
+      const beats = []; let tt = 0;
+      for(let i=0;i<400;i++){
+        const thisRR = rr * (0.7 + Math.random()*0.6);
+        beats.push({
+          t: tt,
+          rr: thisRR,
+          amp: 0.5 + Math.random()*1.6,      // varies tall <-> short
+          width: 0.10 + Math.random()*0.10,  // varies wide <-> narrow
+          skew: (Math.random()-0.5)*2,       // shape variation
+          sign: Math.random() < 0.5 ? 1 : -1 // polarity flips
+        });
+        tt += thisRR;
+      }
+      this._pvtBeats = beats;
+    }
+    let y = 0;
+    for(const b of this._pvtBeats){
+      const d = t - b.t;
+      if(d > -0.05 && d < b.rr){
+        const phase = d / b.rr;
+        y += b.sign * b.amp * Math.sin(phase*2*Math.PI - Math.PI/2.4 + b.skew*0.5);
+        y += -b.sign * 0.3*b.amp * gauss(phase, 0.6 + b.skew*0.1, b.width);
+      }
+    }
     return y;
   }
 
