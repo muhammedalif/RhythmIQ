@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rhythmiq-cache-v1';
+const CACHE_NAME = 'rhythmiq-cache-v3';
 const ASSETS = [
   './',
   './index.html',

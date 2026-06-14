@@ -191,7 +191,6 @@ function setConnStatus(ok, localOnly){
 function onStateUpdated(){
   if(role === 'monitor'){
     renderMonitorNumbers();
-    updateRhythmLabel();
     updateClinicalFlags();
     syncEngineToState();
   } else {
@@ -219,10 +218,6 @@ function renderMonitorNumbers(){
 
   // dim numerics that are flatlined
   document.getElementById('hrVal').style.color = state.hr === 0 ? '#ff5050' : '';
-}
-
-function updateRhythmLabel(){
-  document.getElementById('rhythmLabel').textContent = RHYTHM_META[state.rhythm]?.label || state.rhythm;
 }
 
 function updateClinicalFlags(){
@@ -386,7 +381,6 @@ function initMonitor(){
   engine = new WaveEngine();
   engine.start();
   renderMonitorNumbers();
-  updateRhythmLabel();
   updateClinicalFlags();
 }
 
@@ -551,23 +545,28 @@ class WaveEngine{
   }
 
   afib(t, hr){
-    // irregularly irregular RR, fibrillatory baseline, no P waves
+    // irregularly irregular RR (no fixed pattern), chaotic fibrillatory
+    // baseline, no P waves. QRS amplitude/timing varies noticeably beat-to-beat.
     if(!this._afibBeats || this._afibBeatsHR !== hr){
       this._afibBeats = []; this._afibBeatsHR = hr;
       let tt = 0;
       for(let i=0;i<400;i++){
-        const rr = (60/hr) * (0.6 + Math.random()*0.8);
+        // wide RR variance: 0.45x to 1.7x average - "irregularly irregular"
+        const rr = (60/hr) * (0.45 + Math.random()*1.25);
         tt += rr;
-        this._afibBeats.push(tt);
+        this._afibBeats.push({ t: tt, amp: 0.9 + Math.random()*0.4 });
       }
     }
     const beats = this._afibBeats;
-    let y = 0.06*Math.sin(t*2*Math.PI*7) + 0.04*Math.sin(t*2*Math.PI*11.3);
-    for(const bt of beats){
-      const d = t - bt;
+    // Chaotic fibrillatory baseline - clearly visible irregular wavering
+    let y = 0.14*Math.sin(t*2*Math.PI*6.3 + Math.sin(t*1.9)*1.5)
+          + 0.10*Math.sin(t*2*Math.PI*9.7 + Math.sin(t*2.7))
+          + 0.07*Math.sin(t*2*Math.PI*13.1 + Math.sin(t*0.6)*2);
+    for(const b of beats){
+      const d = t - b.t;
       if(d > -0.05 && d < 0.35){
         const phase = (d+0.1)/0.35;
-        y += this.pqrst(phase, {pWave:false, qrsWidth:0.07});
+        y += b.amp * this.pqrst(phase, {pWave:false, qrsWidth:0.07});
       }
     }
     return y;
@@ -659,36 +658,39 @@ class WaveEngine{
     const rr = 60/Math.max(hr,1);
 
     if(!polymorphic){
-      // Monomorphic VT: smooth, regular, sinusoidal wide-complex tachycardia.
-      // Consistent amplitude and shape every beat - rounded upstroke,
-      // sharp deep downstroke, slight shoulder before the next beat.
+      // Monomorphic VT: smooth, regular, identical wide complexes every beat.
+      // Tall rounded peak, deep trough, small secondary notch - repeats exactly.
       const phase = (t % rr)/rr;
-      let y = 1.3 * Math.sin(phase*2*Math.PI - Math.PI/2.4);
-      // sharpen the trough
-      y += -0.35 * gauss(phase, 0.62, 0.10);
-      // small shoulder/notch near peak
-      y += 0.15 * gauss(phase, 0.08, 0.05);
+      let y = 1.4 * gauss(phase, 0.18, 0.085);   // tall rounded peak
+      y -= 1.0 * gauss(phase, 0.46, 0.10);        // deep trough
+      y -= 0.3 * gauss(phase, 0.66, 0.06);        // small secondary notch
       return y;
     }
 
-    // Polymorphic VT: chaotic, constantly changing amplitude AND morphology
-    // beat-to-beat. Build a per-beat schedule with randomized amplitude,
-    // width, and shape so consecutive beats look different - including
-    // occasional smaller/irregular segments amid very tall complexes.
+    // Polymorphic VT: chaotic, constantly varying amplitude AND morphology.
+    // Mostly tall spiky alternating-polarity complexes, with occasional
+    // brief clusters of smaller, closely-spaced beats - matching the
+    // characteristic "twisting"/varying appearance.
     if(!this._pvtBeats || this._pvtHR !== hr){
       this._pvtHR = hr;
       const beats = []; let tt = 0;
-      for(let i=0;i<400;i++){
-        const thisRR = rr * (0.7 + Math.random()*0.6);
-        beats.push({
-          t: tt,
-          rr: thisRR,
-          amp: 0.5 + Math.random()*1.6,      // varies tall <-> short
-          width: 0.10 + Math.random()*0.10,  // varies wide <-> narrow
-          skew: (Math.random()-0.5)*2,       // shape variation
-          sign: Math.random() < 0.5 ? 1 : -1 // polarity flips
-        });
-        tt += thisRR;
+      let count = 0;
+      while(count < 600){
+        const cluster = Math.random() < 0.15;
+        const clusterLen = cluster ? (3 + Math.floor(Math.random()*4)) : 1;
+        for(let c=0; c<clusterLen; c++){
+          const thisRR = rr * (0.55 + Math.random()*0.7);
+          const amp = cluster ? (0.25 + Math.random()*0.35) : (0.8 + Math.random()*1.6);
+          beats.push({
+            t: tt,
+            rr: thisRR,
+            amp: amp,
+            width: 0.06 + Math.random()*0.09,
+            sign: Math.random() < 0.5 ? 1 : -1
+          });
+          tt += thisRR;
+          count++;
+        }
       }
       this._pvtBeats = beats;
     }
@@ -697,8 +699,8 @@ class WaveEngine{
       const d = t - b.t;
       if(d > -0.05 && d < b.rr){
         const phase = d / b.rr;
-        y += b.sign * b.amp * Math.sin(phase*2*Math.PI - Math.PI/2.4 + b.skew*0.5);
-        y += -b.sign * 0.3*b.amp * gauss(phase, 0.6 + b.skew*0.1, b.width);
+        y += b.sign * b.amp * gauss(phase, 0.22, b.width);
+        y += -b.sign * 0.4 * b.amp * gauss(phase, 0.5, b.width*1.1);
       }
     }
     return y;
