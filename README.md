@@ -8,7 +8,7 @@ A browser-based virtual bedside patient monitor for ACLS / BLS / PALS / Code Blu
 
 - ICU-style dark monitor display (ECG, Pleth, Resp, Capnograph — all canvas-animated, not images)
 - HR, NIBP, SpO₂, RR, EtCO₂, Temp numerics with alarm banner
-- 16 ECG rhythms: Sinus (normal/tachy/brady), SVT, AFib, AFlutter, 1°/2° Mobitz I & II/3° AV block, Monomorphic & Polymorphic VT, Torsades, VFib (coarse/fine), Asystole
+- 20 ECG rhythms: Sinus (normal/tachy/brady), SVT, AFib, AFlutter, 1°/2° Mobitz I & II/3° AV block, Monomorphic & Polymorphic VT, Torsades, VFib (coarse/fine), Asystole, LBBB, RBBB, STEMI, NSTEMI
 - Independent parameter control — set HR, pulse, BP, SpO₂, RR, EtCO₂, Temp independently of the ECG rhythm
 - One-tap scenarios: PEA, ROSC, Shock, Stable baseline
 - Cardiac arrest toggle

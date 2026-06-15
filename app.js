@@ -373,6 +373,10 @@ const RHYTHM_META = {
   vfCoarse:   { label:'Ventricular Fibrillation (Coarse)', suggestHR:0 },
   vfFine:     { label:'Ventricular Fibrillation (Fine)', suggestHR:0 },
   asystole:   { label:'Asystole', suggestHR:0 },
+  lbbb:       { label:'Left Bundle Branch Block', suggestHR:75 },
+  rbbb:       { label:'Right Bundle Branch Block', suggestHR:75 },
+  stemi:      { label:'STEMI (ST Elevation MI)', suggestHR:90 },
+  nstemi:     { label:'NSTEMI (ST Depression / T Inversion)', suggestHR:90 },
 };
 
 let engine = null;
@@ -498,6 +502,21 @@ class WaveEngine{
         return this.vfib(t, 0.3);
       case 'asystole':
         return this.flatline(t);
+      case 'lbbb':
+        // Wide QRS (~0.16) with notched/M-shaped complex, broad S wave,
+        // and discordant (inverted) T wave opposite the dominant R deflection
+        return this.sinusBeat(t, hr, {pWave:true, qrsWidth:0.16, notch:true, tInvert:true, tAmpMul:1.1});
+      case 'rbbb':
+        // Wide QRS (~0.15) with RSR' notch ("rabbit ears"); T wave changes
+        // less pronounced than LBBB
+        return this.sinusBeat(t, hr, {pWave:true, qrsWidth:0.15, notch:true, tAmpMul:0.8});
+      case 'stemi':
+        // Normal QRS width with ST segment elevation and tall, broad
+        // "hyperacute" T waves
+        return this.sinusBeat(t, hr, {pWave:true, qrsWidth:0.08, stElev:0.35, tAmpMul:1.8});
+      case 'nstemi':
+        // Normal QRS width with ST depression and T wave inversion
+        return this.sinusBeat(t, hr, {pWave:true, qrsWidth:0.08, stElev:-0.25, tInvert:true, tAmpMul:0.9});
       default:
         return this.sinusBeat(t, hr, {pWave:true, qrsWidth:0.08});
     }
@@ -514,6 +533,10 @@ class WaveEngine{
     const qrsWidth = opts.qrsWidth || 0.08; // fraction of RR
     const narrow = opts.narrow || false;
     const prLong = opts.prLong || false;
+    const stElev = opts.stElev || 0;     // + = ST elevation, - = ST depression
+    const tInvert = opts.tInvert || false;
+    const tAmpMul = opts.tAmpMul !== undefined ? opts.tAmpMul : 1;
+    const notch = opts.notch || false;   // RSR' notch for bundle branch blocks
 
     let y = 0;
     // P wave
@@ -531,9 +554,24 @@ class WaveEngine{
     y += 1.0 * gauss(phase, qrsCenter, qw*0.3);
     // S dip
     y -= 0.25 * gauss(phase, qrsCenter + qw*0.6, qw*0.3);
-    // T wave
-    const tCenter = qrsCenter + 0.18;
-    y += 0.3 * gauss(phase, tCenter, 0.06);
+
+    let stStart = qrsCenter + qw*0.9;
+    if(notch){
+      // secondary R' bump (RSR' / "M" pattern) widens the complex further
+      y += 0.5 * gauss(phase, qrsCenter + qw*1.1, qw*0.3);
+      y -= 0.15 * gauss(phase, qrsCenter + qw*1.7, qw*0.25);
+      stStart = qrsCenter + qw*2.1;
+    }
+
+    // ST segment offset (elevation/depression as a small plateau before T)
+    if(stElev !== 0){
+      y += stElev * gauss(phase, stStart + 0.05, 0.07);
+    }
+
+    // T wave (can be inverted, e.g. NSTEMI / strain pattern)
+    const tCenter = stStart + 0.14;
+    const tSign = tInvert ? -1 : 1;
+    y += tSign * 0.3 * tAmpMul * gauss(phase, tCenter, 0.06);
 
     return y;
   }
