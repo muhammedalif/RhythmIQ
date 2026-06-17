@@ -539,23 +539,24 @@ class WaveEngine{
     const notch = opts.notch || false;   // RSR' notch for bundle branch blocks
 
     let y = 0;
-    // P wave
+    // P wave - small rounded bump before the QRS
     if(pWave){
       const pCenter = prLong ? 0.04 : 0.12;
-      const pWidth = 0.045;
-      y += 0.18 * gauss(phase, pCenter, pWidth);
+      const pWidth = 0.04;
+      y += 0.16 * gauss(phase, pCenter, pWidth);
     }
-    // QRS complex
+    // QRS complex - sharp, narrow spike (classic monitor look: minimal
+    // Q dip, dominant tall R, small S dip right after)
     const qrsCenter = prLong ? 0.42 : 0.22;
     const qw = narrow ? qrsWidth*0.8 : qrsWidth;
-    // Q dip
-    y -= 0.1 * gauss(phase, qrsCenter - qw*0.6, qw*0.25);
-    // R spike
-    y += 1.0 * gauss(phase, qrsCenter, qw*0.3);
-    // S dip
-    y -= 0.25 * gauss(phase, qrsCenter + qw*0.6, qw*0.3);
+    // tiny Q dip (subtle)
+    y -= 0.04 * gauss(phase, qrsCenter - qw*0.5, qw*0.18);
+    // sharp R spike
+    y += 1.0 * gauss(phase, qrsCenter, qw*0.22);
+    // small S dip
+    y -= 0.12 * gauss(phase, qrsCenter + qw*0.55, qw*0.22);
 
-    let stStart = qrsCenter + qw*0.9;
+    let stStart = qrsCenter + qw*0.85;
     if(notch){
       // secondary R' bump (RSR' / "M" pattern) widens the complex further
       y += 0.5 * gauss(phase, qrsCenter + qw*1.1, qw*0.3);
@@ -568,10 +569,10 @@ class WaveEngine{
       y += stElev * gauss(phase, stStart + 0.05, 0.07);
     }
 
-    // T wave (can be inverted, e.g. NSTEMI / strain pattern)
-    const tCenter = stStart + 0.14;
+    // T wave - small rounded bump, flatter baseline on either side
+    const tCenter = stStart + 0.13;
     const tSign = tInvert ? -1 : 1;
-    y += tSign * 0.3 * tAmpMul * gauss(phase, tCenter, 0.06);
+    y += tSign * 0.22 * tAmpMul * gauss(phase, tCenter, 0.055);
 
     return y;
   }
